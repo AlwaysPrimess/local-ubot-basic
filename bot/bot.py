@@ -6,7 +6,7 @@ from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError
 from .utils import add_user, set_user_data, get_user_data
 
-BOT_TOKEN = "BOT_TOKEN_HERE"  # ganti token
+BOT_TOKEN = "8186046328:AAGqNJEZPXkjArIRFSnrWkY1nQT2-imSiWo"  # ganti token
 OWNER_ID = 6976551745
 
 logging.basicConfig(level=logging.INFO)
