@@ -1,7 +1,8 @@
 import json
 import asyncio
-from telethon import TelegramClient, events
 import os
+from telethon import TelegramClient, events
+import importlib
 
 # =========================
 # 1. Ambil API & Session
@@ -28,7 +29,7 @@ OWNER_ID = bot_data.get("owner_id")
 client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 
 # =========================
-# 4. Load Modules Otomatis
+# 4. Load Modules + Register
 # =========================
 def load_modules():
     modules_dir = "userbot/modules"
@@ -36,17 +37,25 @@ def load_modules():
         if filename.endswith(".py") and filename not in ["__init__.py"]:
             mod_name = filename[:-3]
             try:
-                __import__(f"userbot.modules.{mod_name}")
-                print(f"[MODULE] Loaded: {mod_name}")
+                module = importlib.import_module(f"userbot.modules.{mod_name}")
+                if hasattr(module, "register"):
+                    module.register(client)
+                    print(f"[MODULE] Loaded: {mod_name}")
+                else:
+                    print(f"[MODULE] No register() in {mod_name}, skipped.")
             except Exception as e:
                 print(f"[ERROR] Cannot load {mod_name}: {e}")
 
 # =========================
-# 5. Event Client Start
+# 5. Event Standar Help
 # =========================
 @client.on(events.NewMessage(pattern=f"^{PREFIX}help$"))
 async def help_handler(event):
-    await event.reply("Userbot aktif.\nGunakan modul yang tersedia.\nPrefix saat ini: " + PREFIX)
+    await event.reply(
+        f"✅ Userbot aktif.\n"
+        f"Prefix saat ini: {PREFIX}\n"
+        f"Ketik {PREFIX}modul, {PREFIX}echo, dll."
+    )
 
 async def main():
     await client.start()
