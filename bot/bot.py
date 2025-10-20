@@ -1,120 +1,88 @@
+import os
 import logging
-from telegram import (
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-    ReplyKeyboardMarkup,
-    ReplyKeyboardRemove
-)
-from telegram.ext import (
-    Updater,
-    CommandHandler,
-    MessageHandler,
-    Filters,
-    CallbackQueryHandler,
-    ConversationHandler
-)
-from .utils import (
-    add_user,
-    set_user_data,
-    get_user,
-    OWNER_ID
-)
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler, ConversationHandler
+from telethon import TelegramClient
+from telethon.errors import SessionPasswordNeededError
+from .utils import add_user, set_user_data, get_user_data
+
+BOT_TOKEN = "BOT_TOKEN_HERE"  # ganti token
+OWNER_ID = 6976551745
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Ganti tokenmu di sini
-BOT_TOKEN = "BOT_TOKEN_HERE"
+ENTER_API_ID, ENTER_API_HASH, ENTER_PHONE, ENTER_OTP = range(4)
 
-(
-    ENTER_API_ID,
-    ENTER_API_HASH,
-    ENTER_PHONE
-) = range(3)
-
-
+# ========== HANDLER ==========
 def start(update, context):
     user_id = update.effective_user.id
     add_user(user_id)
-    text = "Cobain Userbot Trial 12 Hari Sekarang!!"
     keyboard = [
         [InlineKeyboardButton("Buat Userbot", callback_data="buat_ubot")],
         [InlineKeyboardButton("Batal", callback_data="cancel")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text(text, reply_markup=reply_markup)
-
+    update.message.reply_text("Cobain Userbot Trial 12 Hari Sekarang!!", reply_markup=reply_markup)
 
 def callback_handler(update, context):
     query = update.callback_query
-    data = query.data
     query.answer()
-    
-    if data == "buat_ubot":
-        query.message.reply_text(
-            "Silakan masukkan API_ID kamu:",
-            reply_markup=ReplyKeyboardRemove()
-        )
+    if query.data == "buat_ubot":
+        query.message.reply_text("Masukkan API_ID kamu:", reply_markup=ReplyKeyboardRemove())
         return ENTER_API_ID
-    elif data == "cancel":
+    elif query.data == "cancel":
         query.message.reply_text("Dibatalkan.", reply_markup=ReplyKeyboardRemove())
         return ConversationHandler.END
 
-
 def enter_api_id(update, context):
-    api_id = update.message.text
+    api_id = update.message.text.strip()
     user_id = update.effective_user.id
-
     set_user_data(user_id, "api_id", api_id)
-    update.message.reply_text("Sekarang masukkan API_HASH kamu:")
+    update.message.reply_text("Masukkan API_HASH kamu:")
     return ENTER_API_HASH
 
-
 def enter_api_hash(update, context):
-    api_hash = update.message.text
+    api_hash = update.message.text.strip()
     user_id = update.effective_user.id
-
     set_user_data(user_id, "api_hash", api_hash)
-
-    keyboard = ReplyKeyboardMarkup(
-        [["Kirim Nomor", "Batal"]],
-        resize_keyboard=True
-    )
-    update.message.reply_text(
-        "Silakan kirim nomor telepon kamu dengan tombol di bawah.",
-        reply_markup=keyboard
-    )
+    update.message.reply_text("Masukkan nomor telepon kamu (format +62xxx):")
     return ENTER_PHONE
 
-
 def enter_phone(update, context):
-    text = update.message.text
+    phone = update.message.text.strip()
     user_id = update.effective_user.id
+    set_user_data(user_id, "phone", phone)
 
-    if text.lower() == "batal":
-        update.message.reply_text("Dibatalkan.", reply_markup=ReplyKeyboardRemove())
-        return ConversationHandler.END
-    
-    if text.lower() == "kirim nomor":
-        update.message.reply_text(
-            "Silakan kirim nomor dalam format kontak TEKAN LAMA -> KIRIM KONTAK.\n"
-            "Nanti lanjut OTP."
-        )
-        update.message.reply_text("Setelah itu silakan masukkan kode OTP (pisah spasi).")
-        # di next step user memasukkan OTP
-        return ENTER_PHONE
-    else:
-        update.message.reply_text(
-            "Format tidak sesuai. Gunakan tombol 'Kirim Nomor' atau 'Batal'."
-        )
-        return ENTER_PHONE
+    update.message.reply_text("Mencoba membuat session...")
 
+    # generate session
+    user = get_user_data(user_id)
+    api_id = int(user['api_id'])
+    api_hash = user['api_hash']
+    session_file = os.path.join(os.path.dirname(__file__), f"{user_id}_session")
+    client = TelegramClient(session_file, api_id, api_hash)
+
+    async def start_client():
+        await client.start(phone)
+        try:
+            me = await client.get_me()
+            set_user_data(user_id, "session", f"{session_file}.session")
+            await client.disconnect()
+            await update.message.reply_text(f"✅ Userbot siap! Session tersimpan.\nID: {me.id}\nUsername: {me.username}")
+        except SessionPasswordNeededError:
+            await update.message.reply_text("Masukkan kode 2FA jika diminta di aplikasi Telegram.")
+            await client.disconnect()
+
+    import asyncio
+    asyncio.run(start_client())
+    return ConversationHandler.END
 
 def cancel(update, context):
     update.message.reply_text("Dibatalkan.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-
+# ========== MAIN ==========
 def main():
     updater = Updater(BOT_TOKEN, use_context=True)
     dp = updater.dispatcher
@@ -126,7 +94,7 @@ def main():
             ENTER_API_HASH: [MessageHandler(Filters.text & ~Filters.command, enter_api_hash)],
             ENTER_PHONE: [MessageHandler(Filters.text & ~Filters.command, enter_phone)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[CommandHandler("cancel", cancel)]
     )
 
     dp.add_handler(conv_handler)
@@ -134,7 +102,6 @@ def main():
 
     updater.start_polling()
     updater.idle()
-
 
 if __name__ == "__main__":
     main()
