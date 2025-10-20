@@ -1,67 +1,57 @@
-import os
-import asyncio
 import json
-from telethon import TelegramClient
+import asyncio
+from telethon import TelegramClient, events
+import os
 
-# =======================
-# CONFIG
-# =======================
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config.json')
+# =========================
+# 1. Ambil API & Session
+# =========================
+with open('userbot/config.json', 'r') as f:
+    api_data = json.load(f)
 
-# Buat config jika belum ada
-if not os.path.exists(CONFIG_PATH):
-    with open(CONFIG_PATH, 'w') as f:
-        json.dump({"api_id": "", "api_hash": "", "session": "userbot"}, f, indent=2)
+API_ID = api_data.get("api_id")
+API_HASH = api_data.get("api_hash")
+SESSION_NAME = api_data.get("session", "session_userbot")
 
-with open(CONFIG_PATH, 'r') as f:
-    config = json.load(f)
+# =========================
+# 2. Ambil Prefix + Owner
+# =========================
+with open('userbot/database/config.json', 'r') as f:
+    bot_data = json.load(f)
 
-api_id = config.get("api_id")
-api_hash = config.get("api_hash")
-session_name = config.get("session", "userbot")
+PREFIX = bot_data.get("prefix", ".")
+OWNER_ID = bot_data.get("owner_id")
 
-if not api_id or not api_hash:
-    raise ValueError("Isi api_id, api_hash di config.json terlebih dahulu!")
+# =========================
+# 3. Inisialisasi Client
+# =========================
+client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 
-# =======================
-# CLIENT
-# =======================
-client = TelegramClient(session_name, int(api_id), api_hash)
+# =========================
+# 4. Load Modules Otomatis
+# =========================
+def load_modules():
+    modules_dir = "userbot/modules"
+    for filename in os.listdir(modules_dir):
+        if filename.endswith(".py") and filename not in ["__init__.py"]:
+            mod_name = filename[:-3]
+            try:
+                __import__(f"userbot.modules.{mod_name}")
+                print(f"[MODULE] Loaded: {mod_name}")
+            except Exception as e:
+                print(f"[ERROR] Cannot load {mod_name}: {e}")
 
-# =======================
-# IMPORT MODUL
-# =======================
-from .modules import (
-    help_mod,
-    echo,
-    broadcast,
-    premium,
-    listuser
-)
+# =========================
+# 5. Event Client Start
+# =========================
+@client.on(events.NewMessage(pattern=f"^{PREFIX}help$"))
+async def help_handler(event):
+    await event.reply("Userbot aktif.\nGunakan modul yang tersedia.\nPrefix saat ini: " + PREFIX)
 
-# Import semua stub modul otomatis
-for i in range(6, 51):
-    mod_name = f"mod_{i:02}_stub"
-    try:
-        mod = __import__(f"userbot.modules.{mod_name}", fromlist=["register"])
-        if hasattr(mod, "register"):
-            mod.register(client)
-    except Exception as e:
-        print(f"Gagal load {mod_name}: {e}")
-
-# Daftarkan modul aktif
-help_mod.register(client)
-echo.register(client)
-broadcast.register(client)
-premium.register(client)
-listuser.register(client)
-
-# =======================
-# RUN USERBOT
-# =======================
 async def main():
-    print("🔹 Userbot berjalan...")
     await client.start()
+    print("Userbot berjalan...")
+    load_modules()
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
