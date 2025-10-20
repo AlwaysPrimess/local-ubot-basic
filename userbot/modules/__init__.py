@@ -1,42 +1,21 @@
 # __init__.py
-# Memuat semua modul userbot otomatis
-# Termasuk modul dengan prefix dinamis
+# Auto load semua module di folder
 
-from .help_mod import register as help_register
-from .echo import register as echo_register
-from .broadcast import register as broadcast_register
-from .premium import register as premium_register
-from .listuser import register as listuser_register
+import os
+import importlib
 
-# Modul 06–10
-from .mod_06_prefix import register as prefix_register
-from .mod_07_share import register as share_register
-from .mod_08_download import register as download_register
-from .mod_09_stub import register as mod09_register
-from .mod_10_stub import register as mod10_register
-
-# Daftarkan semua modul ke client
 def register_all(client):
-    # Modul utama
-    help_register(client)
-    echo_register(client)
-    broadcast_register(client)
-    premium_register(client)
-    listuser_register(client)
+    package_dir = os.path.dirname(__file__)
 
-    # Modul 06–10
-    prefix_register(client)
-    share_register(client)
-    download_register(client)
-    mod09_register(client)
-    mod10_register(client)
-
-    # Modul stub 11–50
-    for i in range(11, 51):
-        mod_name = f"mod_{i:02}_stub"
-        try:
-            mod = __import__(f"userbot.modules.{mod_name}", fromlist=["register"])
-            if hasattr(mod, "register"):
-                mod.register(client)
-        except Exception as e:
-            print(f"Gagal load {mod_name}: {e}")
+    for filename in os.listdir(package_dir):
+        if filename.endswith(".py") and filename != "__init__.py":
+            modulename = filename[:-3]  # hapus ".py"
+            try:
+                mod = importlib.import_module(f"userbot.modules.{modulename}")
+                if hasattr(mod, "register"):
+                    mod.register(client)
+                    print(f"[MODULE] Loaded: {modulename}")
+                else:
+                    print(f"[MODULE] Lewati (tidak ada register): {modulename}")
+            except Exception as e:
+                print(f"[ERROR] Gagal load {modulename}: {e}")
